@@ -135,7 +135,7 @@ python -m yolov1.infer \
 ```text
 configs/
   voc.yaml
-src/yolov1/
+yolov1/
   box_ops.py
   config.py
   dataset.py
