@@ -13,17 +13,14 @@
 
 ## 环境
 
-建议使用虚拟环境：
+使用 conda 创建环境：
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+conda create -n yolov1 python=3.11 -y
+conda activate yolov1
 pip install -r requirements.txt
 pip install -e .
 ```
-
-如果你使用 CUDA，请按照你的显卡和 CUDA 版本从 PyTorch 官网安装匹配的 `torch` / `torchvision` 版本，再安装其余依赖。
 
 ## 数据集
 
