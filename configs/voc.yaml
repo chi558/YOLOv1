@@ -14,25 +14,30 @@ model:
   grid_size: 7
   num_boxes: 2
   num_classes: 20
-  backbone: resnet18
+  backbone: resnet34
   pretrained_backbone: true
+  use_conv_head: true
 
 train:
   epochs: 150
-  batch_size: 32
+  batch_size: 64
   learning_rate: 0.001
   lr_decay:
-    - 90
-    - 120
+    - 50
+    - 75
+    - 100
+    - 125
+  lr_gamma: 0.5
   momentum: 0.9
   weight_decay: 0.0005
-  label_smoothing: 0.1
+  label_smoothing: 0.0
   lambda_coord: 5.0
   lambda_noobj: 0.5
   checkpoint_dir: checkpoints
   checkpoint_interval: 10
   eval_interval: 10
-  eval_conf_threshold: 0.05
+  eval_conf_threshold: 0.001
+  nms_threshold: 0.5
   run_dir: runs
   seed: 2023
 

@@ -28,7 +28,15 @@ def infer(config_path: str, checkpoint_path: str, image_path: str, output_path: 
     model.eval()
     with torch.no_grad():
         preds = model(transform(image).unsqueeze(0).to(device)).cpu()
-    detections = decode_predictions(preds, original_size, cfg["model"]["grid_size"], cfg["model"]["num_boxes"], cfg["model"]["num_classes"], conf_threshold)
+    detections = decode_predictions(
+        preds,
+        original_size,
+        cfg["model"]["grid_size"],
+        cfg["model"]["num_boxes"],
+        cfg["model"]["num_classes"],
+        conf_threshold,
+        cfg["train"].get("nms_threshold", 0.45),
+    )
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default()
     for det in detections:

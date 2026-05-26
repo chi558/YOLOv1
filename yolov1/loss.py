@@ -34,46 +34,55 @@ class YOLOv1Loss(nn.Module):
         target_boxes = targets[..., self.num_classes:].view(*targets.shape[:3], self.num_boxes, 5)
 
         obj_mask = target_boxes[..., 0, 4] > 0
-        noobj_mask = ~obj_mask
-        pred_xy = torch.sigmoid(pred_boxes[..., :2])
-        pred_wh = pred_boxes[..., 2:4].abs()
-        pred_conf = torch.sigmoid(pred_boxes[..., 4])
+        pred_boxes = torch.sigmoid(pred_boxes)
+        pred_xy = pred_boxes[..., :2]
+        pred_wh_sqrt = pred_boxes[..., 2:4]
+        pred_conf = pred_boxes[..., 4]
         target_xy = target_boxes[..., :2]
-        target_wh = target_boxes[..., 2:4]
-        target_conf = target_boxes[..., 4]
+        target_wh_sqrt = target_boxes[..., 2:4]
 
-        responsible = self._responsible_mask(pred_xy, pred_wh, target_xy[..., 0, :], target_wh[..., 0, :], obj_mask)
+        pred_xyxy = self._to_xyxy(pred_xy, pred_wh_sqrt.square())
+        target_xyxy = self._to_xyxy(target_xy, target_wh_sqrt.square())
+        ious = self._matched_iou(pred_xyxy, target_xyxy)
+        max_iou, best_box = ious.max(dim=-1, keepdim=True)
+        box_ids = torch.arange(self.num_boxes, device=preds.device).view(1, 1, 1, self.num_boxes)
+        responsible = (box_ids == best_box) & obj_mask.unsqueeze(-1)
 
         zero = preds.sum() * 0
         if responsible.any():
             coord_loss = self.lambda_coord * (
                 F.mse_loss(pred_xy[responsible], target_xy[responsible], reduction="sum")
-                + F.mse_loss(torch.sqrt(pred_wh[responsible].clamp(min=1e-6)), torch.sqrt(target_wh[responsible].clamp(min=1e-6)), reduction="sum")
+                + F.mse_loss(pred_wh_sqrt[responsible], target_wh_sqrt[responsible], reduction="sum")
             )
-            obj_loss = F.mse_loss(pred_conf[responsible], target_conf[responsible], reduction="sum")
+            obj_loss = F.mse_loss(pred_conf[responsible], max_iou.expand_as(pred_conf)[responsible].detach(), reduction="sum")
             class_loss = F.mse_loss(class_preds[obj_mask], class_targets[obj_mask], reduction="sum")
         else:
             coord_loss = zero
             obj_loss = zero
             class_loss = zero
-        noobj = noobj_mask.unsqueeze(-1).expand_as(pred_conf) | ~responsible
+        noobj = ~responsible
         noobj_loss = self.lambda_noobj * F.mse_loss(pred_conf[noobj], torch.zeros_like(pred_conf[noobj]), reduction="sum")
         return (coord_loss + obj_loss + noobj_loss + class_loss) / preds.shape[0]
 
-    def _responsible_mask(
+    def _to_xyxy(self, xy: torch.Tensor, wh: torch.Tensor) -> torch.Tensor:
+        shifts_y, shifts_x = torch.meshgrid(
+            torch.arange(self.grid_size, device=xy.device, dtype=xy.dtype),
+            torch.arange(self.grid_size, device=xy.device, dtype=xy.dtype),
+            indexing="ij",
+        )
+        shifts = torch.stack((shifts_x, shifts_y), dim=-1).view(1, self.grid_size, self.grid_size, 1, 2)
+        centers = (xy + shifts) / float(self.grid_size)
+        return xywh_to_xyxy(torch.cat((centers, wh), dim=-1))
+
+    def _matched_iou(
         self,
-        pred_xy: torch.Tensor,
-        pred_wh: torch.Tensor,
-        target_xy: torch.Tensor,
-        target_wh: torch.Tensor,
-        obj_mask: torch.Tensor,
+        pred_xyxy: torch.Tensor,
+        target_xyxy: torch.Tensor,
     ) -> torch.Tensor:
-        mask = torch.zeros(pred_xy.shape[:-1], dtype=torch.bool, device=pred_xy.device)
-        obj_indices = obj_mask.nonzero(as_tuple=False)
-        for batch, row, col in obj_indices:
-            pred = torch.cat((pred_xy[batch, row, col], pred_wh[batch, row, col]), dim=-1)
-            tgt = torch.cat((target_xy[batch, row, col].unsqueeze(0), target_wh[batch, row, col].unsqueeze(0)), dim=-1)
-            ious = box_iou(xywh_to_xyxy(pred), xywh_to_xyxy(tgt)).squeeze(1)
-            best = int(ious.argmax())
-            mask[batch, row, col, best] = True
-        return mask
+        ious = []
+        for box_idx in range(self.num_boxes):
+            ious.append(box_iou(
+                pred_xyxy[..., box_idx, :].reshape(-1, 4),
+                target_xyxy[..., box_idx, :].reshape(-1, 4),
+            ).diag().view(*pred_xyxy.shape[:3]))
+        return torch.stack(ious, dim=-1)

@@ -63,7 +63,7 @@ def train(config_path: str, resume: str | None = None) -> None:
         label_smoothing=cfg["train"].get("label_smoothing", 0.0),
     )
     optimizer = torch.optim.SGD(model.parameters(), lr=cfg["train"]["learning_rate"], momentum=cfg["train"]["momentum"], weight_decay=cfg["train"]["weight_decay"])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg["train"].get("lr_decay", []), gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg["train"].get("lr_decay", []), gamma=cfg["train"].get("lr_gamma", 0.1))
     start_epoch = 0
     if resume:
         checkpoint = torch.load(resume, map_location=device)

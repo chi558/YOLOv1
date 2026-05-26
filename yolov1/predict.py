@@ -25,11 +25,12 @@ def decode_predictions(
 ) -> list[Detection]:
     if preds.ndim == 4:
         preds = preds.squeeze(0)
-    class_probs = torch.softmax(preds[..., :num_classes], dim=-1)
+    class_probs = preds[..., :num_classes].clamp(min=0.0, max=1.0)
     boxes = preds[..., num_classes:].view(grid_size, grid_size, num_boxes, 5)
-    xy = torch.sigmoid(boxes[..., :2])
-    wh = boxes[..., 2:4].abs().clamp(max=1)
-    conf = torch.sigmoid(boxes[..., 4])
+    boxes = torch.sigmoid(boxes)
+    xy = boxes[..., :2]
+    wh = boxes[..., 2:4].square().clamp(max=1)
+    conf = boxes[..., 4]
 
     detections: list[Detection] = []
     width, height = image_size

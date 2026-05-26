@@ -93,7 +93,7 @@ class VOCDataset(Dataset):
             target[cell_y, cell_x, self.class_to_idx[name]] = 1
             for box_idx in range(self.num_boxes):
                 start = len(self.classes) + box_idx * 5
-                target[cell_y, cell_x, start:start + 5] = torch.tensor([x_cell, y_cell, bw, bh, 1.0])
+                target[cell_y, cell_x, start:start + 5] = torch.tensor([x_cell, y_cell, bw ** 0.5, bh ** 0.5, 1.0])
         return target
 
 

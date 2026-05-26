@@ -99,7 +99,15 @@ def evaluate_model(
                 anns, ann_id = _load_coco_annotations(anno_path, cfg["classes"], image_id, ann_id)
                 annotations_json.extend(anns)
                 preds = model(images.to(device)).cpu()
-                detections = decode_predictions(preds, image_size, cfg["model"]["grid_size"], cfg["model"]["num_boxes"], cfg["model"]["num_classes"], conf_threshold)
+                detections = decode_predictions(
+                    preds,
+                    image_size,
+                    cfg["model"]["grid_size"],
+                    cfg["model"]["num_boxes"],
+                    cfg["model"]["num_classes"],
+                    conf_threshold,
+                    cfg["train"].get("nms_threshold", 0.45),
+                )
             for det in detections:
                 x1, y1, x2, y2 = det.box_xyxy
                 x1 = max(0.0, min(float(x1), float(width)))
