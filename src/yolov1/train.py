@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from yolov1.config import ensure_dir, load_config
 from yolov1.dataset import build_dataset
+from yolov1.evaluate import evaluate_model
 from yolov1.loss import YOLOv1Loss
 from yolov1.model import YOLOv1
 
@@ -75,6 +76,8 @@ def train(config_path: str, resume: str | None = None) -> None:
 
     ckpt_dir = ensure_dir(cfg["train"]["checkpoint_dir"])
     checkpoint_interval = int(cfg["train"].get("checkpoint_interval", 10))
+    eval_interval = int(cfg["train"].get("eval_interval", 10))
+    best_f1 = -1.0
     total_start = time.perf_counter()
     for epoch in range(start_epoch, cfg["train"]["epochs"]):
         epoch_start = time.perf_counter()
@@ -101,14 +104,43 @@ def train(config_path: str, resume: str | None = None) -> None:
             epoch_path = Path(ckpt_dir) / f"epoch_{epoch + 1:03d}.pt"
             torch.save(checkpoint, epoch_path)
             saved_paths.append(str(epoch_path))
+        metrics = None
+        if eval_interval > 0 and (epoch + 1) % eval_interval == 0:
+            eval_start = time.perf_counter()
+            metrics = evaluate_model(
+                model=model,
+                cfg=cfg,
+                device=device,
+                conf_threshold=cfg["train"].get("eval_conf_threshold", 0.05),
+                iou_threshold=cfg["train"].get("eval_iou_threshold", 0.5),
+            )
+            eval_time = time.perf_counter() - eval_start
+            if metrics["f1"] > best_f1:
+                best_f1 = metrics["f1"]
+                best_path = Path(ckpt_dir) / "best.pt"
+                torch.save(checkpoint, best_path)
+                saved_paths.append(str(best_path))
+            logger.info(
+                "Eval epoch %03d | precision %.4f | recall %.4f | f1 %.4f | eval_time %s | best_f1 %.4f",
+                epoch + 1,
+                metrics["precision"],
+                metrics["recall"],
+                metrics["f1"],
+                _format_seconds(eval_time),
+                best_f1,
+            )
         epoch_time = time.perf_counter() - epoch_start
         total_time = time.perf_counter() - total_start
+        metric_text = ""
+        if metrics is not None:
+            metric_text = f" | precision {metrics['precision']:.4f} | recall {metrics['recall']:.4f} | f1 {metrics['f1']:.4f}"
         logger.info(
-            "Epoch %03d/%03d | loss %.6f | lr %.6g | epoch_time %s | total_time %s | checkpoints %s",
+            "Epoch %03d/%03d | loss %.6f | lr %.6g%s | epoch_time %s | total_time %s | checkpoints %s",
             epoch + 1,
             cfg["train"]["epochs"],
             avg_loss,
             lr,
+            metric_text,
             _format_seconds(epoch_time),
             _format_seconds(total_time),
             ", ".join(saved_paths),

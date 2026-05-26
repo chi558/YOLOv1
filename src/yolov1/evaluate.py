@@ -38,14 +38,16 @@ def _load_gt(annotation: Path, classes: list[str], image_size: tuple[int, int]) 
     return result
 
 
-def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.05, iou_threshold: float = 0.5) -> dict[str, float]:
-    cfg = load_config(config_path)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def evaluate_model(
+    model: torch.nn.Module,
+    cfg: dict,
+    device: torch.device,
+    conf_threshold: float = 0.05,
+    iou_threshold: float = 0.5,
+) -> dict[str, float]:
     dataset = build_dataset(cfg, split="val", augment=False)
     loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=cfg["dataset"]["num_workers"])
-    model = YOLOv1(**cfg["model"]).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint["model"])
+    was_training = model.training
     model.eval()
 
     true_positive = 0
@@ -73,9 +75,20 @@ def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.0
                 else:
                     false_positive += 1
             false_negative += len(gts) - len(matched)
+    if was_training:
+        model.train()
     precision = true_positive / max(1, true_positive + false_positive)
     recall = true_positive / max(1, true_positive + false_negative)
     return {"precision": precision, "recall": recall, "f1": 2 * precision * recall / max(1e-6, precision + recall)}
+
+
+def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.05, iou_threshold: float = 0.5) -> dict[str, float]:
+    cfg = load_config(config_path)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = YOLOv1(**cfg["model"]).to(device)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint["model"])
+    return evaluate_model(model, cfg, device, conf_threshold, iou_threshold)
 
 
 class ImageSize:
@@ -99,8 +112,9 @@ def main() -> None:
     parser.add_argument("--config", default="configs/voc.yaml")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--conf-threshold", type=float, default=0.05)
+    parser.add_argument("--iou-threshold", type=float, default=0.5)
     args = parser.parse_args()
-    metrics = evaluate(args.config, args.checkpoint, args.conf_threshold)
+    metrics = evaluate(args.config, args.checkpoint, args.conf_threshold, args.iou_threshold)
     for name, value in metrics.items():
         print(f"{name}: {value:.4f}")
 

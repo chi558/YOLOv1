@@ -31,6 +31,9 @@ train:
   lambda_noobj: 0.5
   checkpoint_dir: checkpoints
   checkpoint_interval: 10
+  eval_interval: 10
+  eval_conf_threshold: 0.05
+  eval_iou_threshold: 0.5
   run_dir: runs
   seed: 2023
 

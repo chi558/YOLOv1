@@ -62,6 +62,7 @@ dataset:
 ```
 
 例如目录是 `/data/VOCdevkit/VOC2007` 和 `/data/VOCdevkit/VOC2012`，则 `root` 写成 `/data/VOCdevkit`。
+默认训练集为 VOC2007 trainval + VOC2012 trainval，eval 集为 VOC2007 test。
 
 ## 训练
 
@@ -76,8 +77,9 @@ python -m yolov1.train --config configs/voc.yaml --resume checkpoints/last.pt
 ```
 
 训练输出默认保存在 `checkpoints/`，该目录已被 `.gitignore` 忽略。
-训练日志默认保存在 `runs/train.log`，包含每个 epoch 的 loss、学习率、epoch 耗时、累计耗时和 checkpoint 路径。
+训练日志默认保存在 `runs/train.log`，包含每个 epoch 的 loss、学习率、eval 指标、epoch 耗时、累计耗时和 checkpoint 路径。
 checkpoint 默认每个 epoch 保存并覆盖 `checkpoints/last.pt`，每 10 个 epoch 额外保存一次 `checkpoints/epoch_XXX.pt`。
+训练中默认每 10 个 epoch 在 VOC2007 test 上 eval 一次，并按 best F1 保存 `checkpoints/best.pt`。
 
 ## 测试/评估
 
@@ -126,6 +128,7 @@ python -m yolov1.infer \
 - `train.learning_rate`: 初始学习率，默认 0.001
 - `train.lr_decay`: 学习率衰减 epoch，默认 `[90, 120]`
 - `train.checkpoint_interval`: 额外保存 checkpoint 的间隔，默认 10
+- `train.eval_interval`: 训练中 eval 间隔，默认 10
 
 ## 项目结构
 
