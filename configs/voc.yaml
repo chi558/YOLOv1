@@ -1,0 +1,50 @@
+dataset:
+  root: data/VOCdevkit
+  image_sets:
+    train:
+      - [VOC2007, trainval]
+      - [VOC2012, trainval]
+    val:
+      - [VOC2007, test]
+  image_size: 448
+  num_workers: 4
+
+model:
+  grid_size: 7
+  num_boxes: 2
+  num_classes: 20
+  pretrained_backbone: true
+
+train:
+  epochs: 135
+  batch_size: 16
+  learning_rate: 0.0005
+  momentum: 0.9
+  weight_decay: 0.0005
+  lambda_coord: 5.0
+  lambda_noobj: 0.5
+  checkpoint_dir: checkpoints
+  run_dir: runs
+  seed: 42
+
+classes:
+  - aeroplane
+  - bicycle
+  - bird
+  - boat
+  - bottle
+  - bus
+  - car
+  - cat
+  - chair
+  - cow
+  - diningtable
+  - dog
+  - horse
+  - motorbike
+  - person
+  - pottedplant
+  - sheep
+  - sofa
+  - train
+  - tvmonitor
