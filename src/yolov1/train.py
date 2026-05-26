@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import time
 from pathlib import Path
 
 import torch
@@ -13,13 +15,43 @@ from yolov1.loss import YOLOv1Loss
 from yolov1.model import YOLOv1
 
 
+def _setup_logger(run_dir: str | Path) -> logging.Logger:
+    ensure_dir(run_dir)
+    logger = logging.getLogger("yolov1.train")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+    file_handler = logging.FileHandler(Path(run_dir) / "train.log", encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    return logger
+
+
+def _format_seconds(seconds: float) -> str:
+    seconds = int(seconds)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def train(config_path: str, resume: str | None = None) -> None:
     cfg = load_config(config_path)
+    logger = _setup_logger(cfg["train"]["run_dir"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(int(cfg["train"].get("seed", 42)))
+    logger.info("Start training")
+    logger.info("Device: %s", device)
+    logger.info("Config: %s", config_path)
 
     train_set = build_dataset(cfg, split="train", augment=True)
     loader = DataLoader(train_set, batch_size=cfg["train"]["batch_size"], shuffle=True, num_workers=cfg["dataset"]["num_workers"], pin_memory=torch.cuda.is_available())
+    logger.info("Train samples: %d", len(train_set))
+    logger.info("Batch size: %d, epochs: %d", cfg["train"]["batch_size"], cfg["train"]["epochs"])
     model = YOLOv1(**cfg["model"]).to(device)
     criterion = YOLOv1Loss(
         grid_size=cfg["model"]["grid_size"],
@@ -39,9 +71,13 @@ def train(config_path: str, resume: str | None = None) -> None:
         if "scheduler" in checkpoint:
             scheduler.load_state_dict(checkpoint["scheduler"])
         start_epoch = int(checkpoint["epoch"]) + 1
+        logger.info("Resumed from %s at epoch %d", resume, start_epoch + 1)
 
     ckpt_dir = ensure_dir(cfg["train"]["checkpoint_dir"])
+    checkpoint_interval = int(cfg["train"].get("checkpoint_interval", 10))
+    total_start = time.perf_counter()
     for epoch in range(start_epoch, cfg["train"]["epochs"]):
+        epoch_start = time.perf_counter()
         model.train()
         running = 0.0
         progress = tqdm(loader, desc=f"epoch {epoch + 1}/{cfg['train']['epochs']}")
@@ -54,11 +90,30 @@ def train(config_path: str, resume: str | None = None) -> None:
             optimizer.step()
             running += float(loss.item())
             progress.set_postfix(loss=running / max(1, progress.n))
+        avg_loss = running / max(1, len(loader))
+        lr = optimizer.param_groups[0]["lr"]
         scheduler.step()
         checkpoint = {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "config": cfg}
-        torch.save(checkpoint, Path(ckpt_dir) / "last.pt")
-        if (epoch + 1) % 10 == 0:
-            torch.save(checkpoint, Path(ckpt_dir) / f"epoch_{epoch + 1:03d}.pt")
+        last_path = Path(ckpt_dir) / "last.pt"
+        torch.save(checkpoint, last_path)
+        saved_paths = [str(last_path)]
+        if checkpoint_interval > 0 and (epoch + 1) % checkpoint_interval == 0:
+            epoch_path = Path(ckpt_dir) / f"epoch_{epoch + 1:03d}.pt"
+            torch.save(checkpoint, epoch_path)
+            saved_paths.append(str(epoch_path))
+        epoch_time = time.perf_counter() - epoch_start
+        total_time = time.perf_counter() - total_start
+        logger.info(
+            "Epoch %03d/%03d | loss %.6f | lr %.6g | epoch_time %s | total_time %s | checkpoints %s",
+            epoch + 1,
+            cfg["train"]["epochs"],
+            avg_loss,
+            lr,
+            _format_seconds(epoch_time),
+            _format_seconds(total_time),
+            ", ".join(saved_paths),
+        )
+    logger.info("Finished training | total_time %s", _format_seconds(time.perf_counter() - total_start))
 
 
 def main() -> None:

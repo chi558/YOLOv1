@@ -76,6 +76,8 @@ python -m yolov1.train --config configs/voc.yaml --resume checkpoints/last.pt
 ```
 
 训练输出默认保存在 `checkpoints/`，该目录已被 `.gitignore` 忽略。
+训练日志默认保存在 `runs/train.log`，包含每个 epoch 的 loss、学习率、epoch 耗时、累计耗时和 checkpoint 路径。
+checkpoint 默认每个 epoch 保存并覆盖 `checkpoints/last.pt`，每 10 个 epoch 额外保存一次 `checkpoints/epoch_XXX.pt`。
 
 ## 测试/评估
 
@@ -123,6 +125,7 @@ python -m yolov1.infer \
 - `train.epochs`: 训练轮数，默认 150
 - `train.learning_rate`: 初始学习率，默认 0.001
 - `train.lr_decay`: 学习率衰减 epoch，默认 `[90, 120]`
+- `train.checkpoint_interval`: 额外保存 checkpoint 的间隔，默认 10
 
 ## 项目结构
 
