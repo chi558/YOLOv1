@@ -77,9 +77,9 @@ python -m yolov1.train --config configs/voc.yaml --resume checkpoints/last.pt
 ```
 
 训练输出默认保存在 `checkpoints/`，该目录已被 `.gitignore` 忽略。
-训练日志默认保存在 `runs/train.log`，包含每个 epoch 的 loss、学习率、eval 指标、epoch 耗时、累计耗时和 checkpoint 路径。
+训练日志默认保存在 `runs/train.log`，包含每个 epoch 的 loss、学习率、COCO-style AP 指标、epoch 耗时、累计耗时和 checkpoint 路径。
 checkpoint 默认每个 epoch 保存并覆盖 `checkpoints/last.pt`，每 10 个 epoch 额外保存一次 `checkpoints/epoch_XXX.pt`。
-训练中默认每 10 个 epoch 在 VOC2007 test 上 eval 一次，并按 best F1 保存 `checkpoints/best.pt`。
+训练中默认每 10 个 epoch 在 VOC2007 test 上 eval 一次，并按 best AP@[0.50:0.95] 保存 `checkpoints/best.pt`。
 
 ## 测试/评估
 
@@ -89,7 +89,7 @@ checkpoint 默认每个 epoch 保存并覆盖 `checkpoints/last.pt`，每 10 个
 python -m yolov1.evaluate --config configs/voc.yaml --checkpoint checkpoints/last.pt
 ```
 
-当前评估脚本输出 `precision`、`recall` 和 `f1`。如果需要论文标准 VOC mAP，可以在此基础上扩展 AP 计算和 per-class 曲线。
+当前评估脚本输出 COCO-style bbox AP，包括 AP@[0.50:0.95]、AP50、AP75 和 small/medium/large 分组 AP。
 
 运行项目单元测试：
 

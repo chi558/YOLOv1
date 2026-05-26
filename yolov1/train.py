@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from yolov1.config import ensure_dir, load_config
 from yolov1.dataset import build_dataset
-from yolov1.evaluate import evaluate_model
+from yolov1.evaluate import evaluate_model, format_coco_metrics
 from yolov1.loss import YOLOv1Loss
 from yolov1.model import YOLOv1
 
@@ -77,7 +77,7 @@ def train(config_path: str, resume: str | None = None) -> None:
     ckpt_dir = ensure_dir(cfg["train"]["checkpoint_dir"])
     checkpoint_interval = int(cfg["train"].get("checkpoint_interval", 10))
     eval_interval = int(cfg["train"].get("eval_interval", 10))
-    best_f1 = -1.0
+    best_ap = -1.0
     total_start = time.perf_counter()
     for epoch in range(start_epoch, cfg["train"]["epochs"]):
         epoch_start = time.perf_counter()
@@ -112,28 +112,29 @@ def train(config_path: str, resume: str | None = None) -> None:
                 cfg=cfg,
                 device=device,
                 conf_threshold=cfg["train"].get("eval_conf_threshold", 0.05),
-                iou_threshold=cfg["train"].get("eval_iou_threshold", 0.5),
             )
             eval_time = time.perf_counter() - eval_start
-            if metrics["f1"] > best_f1:
-                best_f1 = metrics["f1"]
+            if metrics["ap"] > best_ap:
+                best_ap = metrics["ap"]
                 best_path = Path(ckpt_dir) / "best.pt"
                 torch.save(checkpoint, best_path)
                 saved_paths.append(str(best_path))
             logger.info(
-                "Eval epoch %03d | precision %.4f | recall %.4f | f1 %.4f | eval_time %s | best_f1 %.4f",
+                "Eval epoch %03d | AP %.4f | AP50 %.4f | AP75 %.4f | eval_time %s | best_AP %.4f",
                 epoch + 1,
-                metrics["precision"],
-                metrics["recall"],
-                metrics["f1"],
+                metrics["ap"],
+                metrics["ap50"],
+                metrics["ap75"],
                 _format_seconds(eval_time),
-                best_f1,
+                best_ap,
             )
+            for line in format_coco_metrics(metrics).splitlines():
+                logger.info(line)
         epoch_time = time.perf_counter() - epoch_start
         total_time = time.perf_counter() - total_start
         metric_text = ""
         if metrics is not None:
-            metric_text = f" | precision {metrics['precision']:.4f} | recall {metrics['recall']:.4f} | f1 {metrics['f1']:.4f}"
+            metric_text = f" | AP {metrics['ap']:.4f} | AP50 {metrics['ap50']:.4f} | AP75 {metrics['ap75']:.4f}"
         logger.info(
             "Epoch %03d/%03d | loss %.6f | lr %.6g%s | epoch_time %s | total_time %s | checkpoints %s",
             epoch + 1,
