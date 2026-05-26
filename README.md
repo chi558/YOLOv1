@@ -8,7 +8,6 @@
 - YOLOv1 风格检测模型，默认使用 ResNet-50 特征提取器
 - YOLOv1 损失函数，包括坐标、置信度、无目标和类别损失
 - 训练脚本、评估脚本、单张图片 inference 脚本
-- VOC 数据集下载脚本
 - 基础单元测试
 
 ## 环境
@@ -26,10 +25,17 @@ pip install -e .
 
 本项目使用原始 VOC XML 布局。
 
-如果你使用 `torchvision.datasets.VOCDetection` 下载 VOC2007 trainval/test 和 VOC2012 trainval：
+使用 Hugging Face 下载 VOC2007 和 VOC2012：
 
 ```bash
-python scripts/download_voc.py --root data
+mkdir -p data/pascal_voc data/VOCdevkit
+hf download HuggingFaceM4/pascal_voc \
+  voc2007.tar.gz voc2012.tar.gz \
+  --repo-type dataset \
+  --local-dir data/pascal_voc
+
+tar -xzf data/pascal_voc/voc2007.tar.gz -C data/VOCdevkit
+tar -xzf data/pascal_voc/voc2012.tar.gz -C data/VOCdevkit
 ```
 
 下载后目录应类似：
@@ -122,7 +128,6 @@ python -m yolov1.infer \
 configs/
   voc.yaml
 scripts/
-  download_voc.py
 src/yolov1/
   box_ops.py
   config.py
