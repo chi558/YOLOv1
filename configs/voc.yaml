@@ -15,7 +15,7 @@ model:
   num_boxes: 2
   num_classes: 20
   backbone: resnet34
-  pretrained_backbone: true
+  pretrained_backbone: false
   use_conv_head: true
 
 train:
