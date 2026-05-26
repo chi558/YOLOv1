@@ -5,7 +5,7 @@
 ## 功能
 
 - VOC2007/VOC2012 数据集读取与 YOLOv1 标签编码
-- YOLOv1 风格检测模型，默认使用 ResNet-50 特征提取器
+- YOLOv1 风格检测模型，默认使用 ResNet18 特征提取器
 - YOLOv1 损失函数，包括坐标、置信度、无目标和类别损失
 - 训练脚本、评估脚本、单张图片 inference 脚本
 - 基础单元测试
@@ -118,6 +118,7 @@ python -m yolov1.infer \
 - `dataset.image_sets.val`: 验证/测试 split，默认 VOC2007 test
 - `model.grid_size`: YOLO 网格大小，默认 7
 - `model.num_boxes`: 每个网格预测框数，默认 2
+- `model.backbone`: 主干网络，默认 `resnet18`
 - `train.batch_size`: batch size，默认 32
 - `train.epochs`: 训练轮数，默认 150
 - `train.learning_rate`: 初始学习率，默认 0.001
@@ -128,7 +129,6 @@ python -m yolov1.infer \
 ```text
 configs/
   voc.yaml
-scripts/
 src/yolov1/
   box_ops.py
   config.py
