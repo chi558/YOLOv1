@@ -101,98 +101,12 @@ def parse_image_sets(raw_sets: list[list[str]] | list[tuple[str, str]]) -> list[
     return [(str(year), str(split)) for year, split in raw_sets]
 
 
-class YOLOLabelVOCDataset(Dataset):
-    def __init__(
-        self,
-        root: str | Path,
-        splits: list[str],
-        image_size: int = 448,
-        grid_size: int = 7,
-        num_boxes: int = 2,
-        classes: list[str] | None = None,
-        augment: bool = False,
-    ) -> None:
-        self.root = Path(root)
-        self.image_size = image_size
-        self.grid_size = grid_size
-        self.num_boxes = num_boxes
-        self.classes = classes or VOC_CLASSES
-        self.samples = self._load_samples(splits)
-        self.transform = transforms.Compose([
-            transforms.Resize((image_size, image_size)),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2) if augment else transforms.Lambda(lambda x: x),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-
-    def _load_samples(self, splits: list[str]) -> list[tuple[Path, Path]]:
-        samples: list[tuple[Path, Path]] = []
-        for split in splits:
-            image_dir = self.root / "images" / split
-            label_dir = self.root / "labels" / split
-            if not image_dir.is_dir():
-                raise FileNotFoundError(f"Missing image directory: {image_dir}")
-            if not label_dir.is_dir():
-                raise FileNotFoundError(f"Missing label directory: {label_dir}")
-            for image_path in sorted(image_dir.glob("*.jpg")):
-                label_path = label_dir / f"{image_path.stem}.txt"
-                if not label_path.is_file():
-                    raise FileNotFoundError(f"Missing label file: {label_path}")
-                samples.append((image_path, label_path))
-        return samples
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        image_path, label_path = self.samples[index]
-        image = Image.open(image_path).convert("RGB")
-        target = self._encode_target(label_path)
-        return self.transform(image), target
-
-    def _encode_target(self, label_path: Path) -> torch.Tensor:
-        target = torch.zeros((self.grid_size, self.grid_size, len(self.classes) + self.num_boxes * 5), dtype=torch.float32)
-        for line in label_path.read_text(encoding="utf-8").splitlines():
-            parts = line.strip().split()
-            if len(parts) != 5:
-                continue
-            class_id = int(parts[0])
-            cx, cy, bw, bh = (float(v) for v in parts[1:])
-            if not 0 <= class_id < len(self.classes):
-                continue
-            cx = min(max(cx, 0.0), 1.0)
-            cy = min(max(cy, 0.0), 1.0)
-            bw = min(max(bw, 0.0), 1.0)
-            bh = min(max(bh, 0.0), 1.0)
-            cell_x = min(int(cx * self.grid_size), self.grid_size - 1)
-            cell_y = min(int(cy * self.grid_size), self.grid_size - 1)
-            if target[cell_y, cell_x, len(self.classes)] == 1:
-                continue
-            x_cell = cx * self.grid_size - cell_x
-            y_cell = cy * self.grid_size - cell_y
-            target[cell_y, cell_x, class_id] = 1
-            for box_idx in range(self.num_boxes):
-                start = len(self.classes) + box_idx * 5
-                target[cell_y, cell_x, start:start + 5] = torch.tensor([x_cell, y_cell, bw, bh, 1.0])
-        return target
-
-
 def build_dataset(cfg: dict, split: str, augment: bool = False) -> Dataset:
     dataset_format = cfg["dataset"].get("format", "voc_xml")
     if dataset_format == "voc_xml":
         return VOCDataset(
             root=cfg["dataset"]["root"],
             image_sets=parse_image_sets(cfg["dataset"]["image_sets"][split]),
-            image_size=cfg["dataset"]["image_size"],
-            grid_size=cfg["model"]["grid_size"],
-            num_boxes=cfg["model"]["num_boxes"],
-            classes=cfg["classes"],
-            augment=augment,
-        )
-    if dataset_format == "yolo_labels":
-        return YOLOLabelVOCDataset(
-            root=cfg["dataset"]["root"],
-            splits=[str(item) for item in cfg["dataset"]["splits"][split]],
             image_size=cfg["dataset"]["image_size"],
             grid_size=cfg["model"]["grid_size"],
             num_boxes=cfg["model"]["num_boxes"],
