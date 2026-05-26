@@ -27,13 +27,17 @@ def train(config_path: str, resume: str | None = None) -> None:
         num_classes=cfg["model"]["num_classes"],
         lambda_coord=cfg["train"]["lambda_coord"],
         lambda_noobj=cfg["train"]["lambda_noobj"],
+        label_smoothing=cfg["train"].get("label_smoothing", 0.0),
     )
     optimizer = torch.optim.SGD(model.parameters(), lr=cfg["train"]["learning_rate"], momentum=cfg["train"]["momentum"], weight_decay=cfg["train"]["weight_decay"])
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg["train"].get("lr_decay", []), gamma=0.1)
     start_epoch = 0
     if resume:
         checkpoint = torch.load(resume, map_location=device)
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
+        if "scheduler" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler"])
         start_epoch = int(checkpoint["epoch"]) + 1
 
     ckpt_dir = ensure_dir(cfg["train"]["checkpoint_dir"])
@@ -50,7 +54,8 @@ def train(config_path: str, resume: str | None = None) -> None:
             optimizer.step()
             running += float(loss.item())
             progress.set_postfix(loss=running / max(1, progress.n))
-        checkpoint = {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(), "config": cfg}
+        scheduler.step()
+        checkpoint = {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "config": cfg}
         torch.save(checkpoint, Path(ckpt_dir) / "last.pt")
         if (epoch + 1) % 10 == 0:
             torch.save(checkpoint, Path(ckpt_dir) / f"epoch_{epoch + 1:03d}.pt")

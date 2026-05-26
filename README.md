@@ -118,9 +118,10 @@ python -m yolov1.infer \
 - `dataset.image_sets.val`: 验证/测试 split，默认 VOC2007 test
 - `model.grid_size`: YOLO 网格大小，默认 7
 - `model.num_boxes`: 每个网格预测框数，默认 2
-- `train.batch_size`: batch size
-- `train.epochs`: 训练轮数
-- `train.learning_rate`: 初始学习率
+- `train.batch_size`: batch size，默认 32
+- `train.epochs`: 训练轮数，默认 150
+- `train.learning_rate`: 初始学习率，默认 0.001
+- `train.lr_decay`: 学习率衰减 epoch，默认 `[90, 120]`
 
 ## 项目结构
 

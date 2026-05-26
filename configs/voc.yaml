@@ -8,7 +8,7 @@ dataset:
     val:
       - [VOC2007, test]
   image_size: 448
-  num_workers: 4
+  num_workers: 8
 
 model:
   grid_size: 7
@@ -17,16 +17,20 @@ model:
   pretrained_backbone: true
 
 train:
-  epochs: 135
-  batch_size: 16
-  learning_rate: 0.0005
+  epochs: 150
+  batch_size: 32
+  learning_rate: 0.001
+  lr_decay:
+    - 90
+    - 120
   momentum: 0.9
   weight_decay: 0.0005
+  label_smoothing: 0.1
   lambda_coord: 5.0
   lambda_noobj: 0.5
   checkpoint_dir: checkpoints
   run_dir: runs
-  seed: 42
+  seed: 2023
 
 classes:
   - aeroplane

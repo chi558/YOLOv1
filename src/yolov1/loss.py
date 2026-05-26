@@ -8,17 +8,28 @@ from yolov1.box_ops import box_iou, xywh_to_xyxy
 
 
 class YOLOv1Loss(nn.Module):
-    def __init__(self, grid_size: int = 7, num_boxes: int = 2, num_classes: int = 20, lambda_coord: float = 5.0, lambda_noobj: float = 0.5) -> None:
+    def __init__(
+        self,
+        grid_size: int = 7,
+        num_boxes: int = 2,
+        num_classes: int = 20,
+        lambda_coord: float = 5.0,
+        lambda_noobj: float = 0.5,
+        label_smoothing: float = 0.0,
+    ) -> None:
         super().__init__()
         self.grid_size = grid_size
         self.num_boxes = num_boxes
         self.num_classes = num_classes
         self.lambda_coord = lambda_coord
         self.lambda_noobj = lambda_noobj
+        self.label_smoothing = label_smoothing
 
     def forward(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         class_preds = preds[..., :self.num_classes]
         class_targets = targets[..., :self.num_classes]
+        if self.label_smoothing > 0:
+            class_targets = class_targets * (1 - self.label_smoothing) + self.label_smoothing / self.num_classes
         pred_boxes = preds[..., self.num_classes:].view(*preds.shape[:3], self.num_boxes, 5)
         target_boxes = targets[..., self.num_classes:].view(*targets.shape[:3], self.num_boxes, 5)
 
