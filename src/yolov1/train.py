@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from yolov1.config import ensure_dir, load_config
-from yolov1.dataset import VOCDataset, parse_image_sets
+from yolov1.dataset import build_dataset
 from yolov1.loss import YOLOv1Loss
 from yolov1.model import YOLOv1
 
@@ -18,15 +18,7 @@ def train(config_path: str, resume: str | None = None) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(int(cfg["train"].get("seed", 42)))
 
-    train_set = VOCDataset(
-        root=cfg["dataset"]["root"],
-        image_sets=parse_image_sets(cfg["dataset"]["image_sets"]["train"]),
-        image_size=cfg["dataset"]["image_size"],
-        grid_size=cfg["model"]["grid_size"],
-        num_boxes=cfg["model"]["num_boxes"],
-        classes=cfg["classes"],
-        augment=True,
-    )
+    train_set = build_dataset(cfg, split="train", augment=True)
     loader = DataLoader(train_set, batch_size=cfg["train"]["batch_size"], shuffle=True, num_workers=cfg["dataset"]["num_workers"], pin_memory=torch.cuda.is_available())
     model = YOLOv1(**cfg["model"]).to(device)
     criterion = YOLOv1Loss(

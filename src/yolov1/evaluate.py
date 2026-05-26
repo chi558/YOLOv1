@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from yolov1.box_ops import box_iou
 from yolov1.config import load_config
-from yolov1.dataset import VOCDataset, parse_image_sets
+from yolov1.dataset import YOLOLabelVOCDataset, build_dataset
 from yolov1.model import YOLOv1
 from yolov1.predict import decode_predictions
 
@@ -41,14 +41,7 @@ def _load_gt(annotation: Path, classes: list[str], image_size: tuple[int, int]) 
 def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.05, iou_threshold: float = 0.5) -> dict[str, float]:
     cfg = load_config(config_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = VOCDataset(
-        root=cfg["dataset"]["root"],
-        image_sets=parse_image_sets(cfg["dataset"]["image_sets"]["val"]),
-        image_size=cfg["dataset"]["image_size"],
-        grid_size=cfg["model"]["grid_size"],
-        num_boxes=cfg["model"]["num_boxes"],
-        classes=cfg["classes"],
-    )
+    dataset = build_dataset(cfg, split="val", augment=False)
     loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=cfg["dataset"]["num_workers"])
     model = YOLOv1(**cfg["model"]).to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -64,7 +57,10 @@ def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.0
             with ImageSize(image_path) as image_size:
                 preds = model(images.to(device)).cpu()
                 detections = decode_predictions(preds, image_size, cfg["model"]["grid_size"], cfg["model"]["num_boxes"], cfg["model"]["num_classes"], conf_threshold)
-                gts = _load_gt(anno_path, cfg["classes"], image_size)
+                if isinstance(dataset, YOLOLabelVOCDataset):
+                    gts = _load_yolo_gt(anno_path, image_size)
+                else:
+                    gts = _load_gt(anno_path, cfg["classes"], image_size)
             matched: set[int] = set()
             for det in detections:
                 candidates = [(gt_idx, gt_box) for gt_idx, (cls, gt_box) in enumerate(gts) if cls == det.class_id and gt_idx not in matched]
@@ -83,6 +79,23 @@ def evaluate(config_path: str, checkpoint_path: str, conf_threshold: float = 0.0
     precision = true_positive / max(1, true_positive + false_positive)
     recall = true_positive / max(1, true_positive + false_negative)
     return {"precision": precision, "recall": recall, "f1": 2 * precision * recall / max(1e-6, precision + recall)}
+
+
+def _load_yolo_gt(label_path: Path, image_size: tuple[int, int]) -> list[tuple[int, tuple[float, float, float, float]]]:
+    width, height = image_size
+    result = []
+    for line in label_path.read_text(encoding="utf-8").splitlines():
+        parts = line.strip().split()
+        if len(parts) != 5:
+            continue
+        class_id = int(parts[0])
+        cx, cy, bw, bh = (float(v) for v in parts[1:])
+        x1 = (cx - bw / 2) * width
+        y1 = (cy - bh / 2) * height
+        x2 = (cx + bw / 2) * width
+        y2 = (cy + bh / 2) * height
+        result.append((class_id, (x1, y1, x2, y2)))
+    return result
 
 
 class ImageSize:

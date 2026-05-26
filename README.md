@@ -27,7 +27,11 @@ pip install -e .
 
 ## 数据集
 
-下载 VOC2007 trainval/test 和 VOC2012 trainval：
+本项目支持两种数据布局。
+
+### 方式一：原始 VOC XML 布局
+
+如果你使用 `torchvision.datasets.VOCDetection` 下载 VOC2007 trainval/test 和 VOC2012 trainval：
 
 ```powershell
 python scripts/download_voc.py --root data
@@ -48,7 +52,95 @@ data/
       JPEGImages/
 ```
 
-配置文件默认读取 `data/VOCdevkit`，可在 `configs/voc.yaml` 中修改。
+此时 `configs/voc.yaml` 应设置为：
+
+```yaml
+dataset:
+  format: voc_xml
+  root: <path-to-VOCdevkit>
+```
+
+例如如果目录是 `D:\datasets\VOCdevkit\VOC2007` 和 `D:\datasets\VOCdevkit\VOC2012`，则 `root` 写成 `D:\datasets\VOCdevkit`。
+
+### 方式二：Hugging Face tar.gz + YOLO label 布局
+
+如果你使用 Hugging Face 下载：
+
+```powershell
+hf download HuggingFaceM4/pascal_voc `
+  voc2007.tar.gz voc2012.tar.gz `
+  --repo-type dataset `
+  --local-dir <path-to-pascal_voc-download>
+```
+
+可以用仓库脚本解压并转换成 `images/` + `labels/` 布局：
+
+```powershell
+python scripts/prepare_pascal_voc.py `
+  --download-dir <path-to-pascal_voc-download> `
+  --voc-root <path-to-raw-voc-root> `
+  --output-root <path-to-prepared-PASCAL-VOC> `
+  --copy
+```
+
+参数说明：
+
+- `--download-dir`: 存放 `voc2007.tar.gz` 和 `voc2012.tar.gz` 的目录
+- `--voc-root`: 解压后的原始 VOC 根目录，脚本会在这里寻找或生成 `VOC2007/` 和 `VOC2012/`
+- `--output-root`: 训练实际读取的目录
+- `--copy`: 在 Windows 上建议使用，避免符号链接权限问题
+
+如果你已经用其他脚本完成了解压，只想转换现有 `VOC2007/` 和 `VOC2012/`：
+
+```powershell
+python scripts/prepare_pascal_voc.py `
+  --skip-extract `
+  --voc-root <path-to-raw-voc-root> `
+  --output-root <path-to-prepared-PASCAL-VOC> `
+  --copy
+```
+
+转换后的目录应为：
+
+```text
+<path-to-prepared-PASCAL-VOC>/
+  images/
+    train2007/
+    val2007/
+    test2007/
+    train2012/
+    val2012/
+  labels/
+    train2007/
+    val2007/
+    test2007/
+    train2012/
+    val2012/
+```
+
+检查转换结果：
+
+```powershell
+python scripts/check_prepared_voc.py --root <path-to-prepared-PASCAL-VOC>
+```
+
+预期数量：
+
+```text
+train2007: 2501
+val2007: 2510
+test2007: 4952
+train2012: 5717
+val2012: 5823
+```
+
+使用这种布局训练时，`configs/voc.yaml` 应设置为：
+
+```yaml
+dataset:
+  format: yolo_labels
+  root: <path-to-prepared-PASCAL-VOC>
+```
 
 ## 训练
 
@@ -100,8 +192,11 @@ python -m yolov1.infer `
 核心配置在 `configs/voc.yaml`：
 
 - `dataset.root`: VOCdevkit 路径
+- `dataset.format`: `voc_xml` 或 `yolo_labels`
 - `dataset.image_sets.train`: 训练 split，默认 VOC2007 trainval + VOC2012 trainval
 - `dataset.image_sets.val`: 验证/测试 split，默认 VOC2007 test
+- `dataset.splits.train`: `yolo_labels` 布局使用的训练 split
+- `dataset.splits.val`: `yolo_labels` 布局使用的验证/测试 split
 - `model.grid_size`: YOLO 网格大小，默认 7
 - `model.num_boxes`: 每个网格预测框数，默认 2
 - `train.batch_size`: batch size
@@ -114,7 +209,9 @@ python -m yolov1.infer `
 configs/
   voc.yaml
 scripts/
+  check_prepared_voc.py
   download_voc.py
+  prepare_pascal_voc.py
 src/yolov1/
   box_ops.py
   config.py

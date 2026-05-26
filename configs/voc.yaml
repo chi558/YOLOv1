@@ -1,11 +1,23 @@
 dataset:
-  root: data/VOCdevkit
+  # Supported formats:
+  # - voc_xml: <root>/VOC2007 and <root>/VOC2012 with JPEGImages/Annotations/ImageSets/Main
+  # - yolo_labels: <root>/images/<split> and <root>/labels/<split> created by scripts/prepare_pascal_voc.py
+  format: voc_xml
+  root: <path-to-VOCdevkit-or-prepared-PASCAL-VOC>
   image_sets:
     train:
       - [VOC2007, trainval]
       - [VOC2012, trainval]
     val:
       - [VOC2007, test]
+  splits:
+    train:
+      - train2007
+      - val2007
+      - train2012
+      - val2012
+    val:
+      - test2007
   image_size: 448
   num_workers: 4
 
